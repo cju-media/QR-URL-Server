@@ -20,12 +20,8 @@ if (fs.existsSync(DATA_FILE)) {
     } catch (e) { console.error("File error"); }
 }
 
-/**
- * CLEANING LOGIC: Removes spaces and forces https://
- */
 const ensureAbsolute = (url) => {
     if (!url || url === "None") return url;
-    // .trim() removes leading/trailing spaces that often cause the "%" issue
     const cleaned = url.trim().replace(/%$/, ''); 
     if (!/^https?:\/\//i.test(cleaned)) return 'https://' + cleaned;
     return cleaned;
@@ -55,7 +51,7 @@ const getLatestPDFUrl = async () => {
         const rawUrl = `https://raw.githubusercontent.com/${USER}/${REPO}/${sha}/${encodeURIComponent(pdf.name)}`;
         return `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`;
     } catch (err) {
-        console.error("Background GitHub Fetch Failed:", err.message);
+        console.error("GitHub Fetch Failed:", err.message);
         return null;
     }
 };
@@ -74,9 +70,12 @@ setInterval(async () => {
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
+    // --- UPDATED SINGLE LINE OUTPUT ---
     if (url.pathname === '/get') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end(`Program-URL ${storedData.program}\nGiving-URL ${storedData.giving}`);
+        // Outputs: Program-URL [URL] Giving-URL [URL] on one line with no trailing newline
+        const output = `Program-URL ${storedData.program} Giving-URL ${storedData.giving}`;
+        res.end(output); 
         return;
     }
 
@@ -203,4 +202,4 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-server.listen(3000, '0.0.0.0', () => console.log('Server Active. Trail cleaner added.'));
+server.listen(3000, '0.0.0.0', () => console.log('Server Active. Single-line GET enabled.'));
