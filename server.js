@@ -8,11 +8,7 @@ const DATA_FILE = path.join(__dirname, 'urls.json');
 const USER = 'TheCathedralFCCLA';
 const REPO = 'OW';
 
-let storedData = { 
-    program: "None", 
-    giving: "None",
-    autoCheckGithub: false 
-};
+let storedData = { program: "None", giving: "None", autoCheckGithub: false };
 
 if (fs.existsSync(DATA_FILE)) {
     try {
@@ -22,7 +18,7 @@ if (fs.existsSync(DATA_FILE)) {
 
 const ensureAbsolute = (url) => {
     if (!url || url === "None") return url;
-    const cleaned = url.trim().replace(/%$/, ''); 
+    const cleaned = url.trim().replace(/%+$/, ''); 
     if (!/^https?:\/\//i.test(cleaned)) return 'https://' + cleaned;
     return cleaned;
 };
@@ -50,10 +46,7 @@ const getLatestPDFUrl = async () => {
         if (!pdf) return null;
         const rawUrl = `https://raw.githubusercontent.com/${USER}/${REPO}/${sha}/${encodeURIComponent(pdf.name)}`;
         return `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`;
-    } catch (err) {
-        console.error("GitHub Fetch Failed:", err.message);
-        return null;
-    }
+    } catch (err) { return null; }
 };
 
 setInterval(async () => {
@@ -61,7 +54,6 @@ setInterval(async () => {
         const newUrl = await getLatestPDFUrl();
         if (newUrl && newUrl !== storedData.program) {
             storedData.program = newUrl;
-            console.log(`Program-URL ${storedData.program}`);
             fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
         }
     }
@@ -70,11 +62,11 @@ setInterval(async () => {
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
-    // --- UPDATED FOR MAX/NDI COMPATIBILITY ---
+    // --- CLEAN SINGLE LINE OUTPUT (NO LABELS) ---
     if (url.pathname === '/get') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        // Using a Pipe (|) separator to help Max distinguish between the two URLs
-        const output = `Program-URL ${storedData.program} | Giving-URL ${storedData.giving}`;
+        // Output format: [ProgramURL] [GivingURL],
+        const output = `${storedData.program} ${storedData.giving},`;
         res.end(output); 
         return;
     }
@@ -100,8 +92,6 @@ const server = http.createServer(async (req, res) => {
             if (formData.givingUrl) {
                 storedData.giving = ensureAbsolute(formData.givingUrl);
             }
-            console.log(`Program-URL ${storedData.program}`);
-            console.log(`Giving-URL ${storedData.giving}`);
             fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(storedData));
@@ -135,13 +125,13 @@ const server = http.createServer(async (req, res) => {
                     </div>
                     <h2 style="margin:0 0 15px 0">URL Controller</h2>
                     <form id="urlForm">
-                        <label>Program-URL</label>
+                        <label>Program URL</label>
                         <input type="text" id="pUrl" placeholder="Enter manual URL...">
                         <div style="margin-bottom:20px;">
                             <input type="checkbox" id="gh" ${storedData.autoCheckGithub ? 'checked' : ''}> 
                             <label for="gh" style="font-weight:normal; font-size:0.9em; cursor:pointer;">Auto-fetch PDF from GitHub (10s)</label>
                         </div>
-                        <label>Giving-URL</label>
+                        <label>Giving URL</label>
                         <input type="text" id="gUrl" placeholder="Enter giving URL...">
                         <button type="submit" id="btn">Update System</button>
                     </form>
@@ -191,4 +181,4 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-server.listen(3000, '0.0.0.0', () => console.log('Server Active. Output: Program-URL | Giving-URL'));
+server.listen(3000, '0.0.0.0', () => console.log('Server Active. No-label output enabled.'));
