@@ -62,11 +62,15 @@ setInterval(async () => {
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
-    // --- CLEAN SINGLE LINE OUTPUT (NO LABELS) ---
+    // --- MAX/MSP RECOVERY OUTPUT ---
     if (url.pathname === '/get') {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        // Output format: [ProgramURL] [GivingURL],
-        const output = `${storedData.program} ${storedData.giving},`;
+        // We set the charset to utf-8 to ensure Max reads the symbols correctly
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        
+        // Removed the comma. Using a simple space. 
+        // Max [maxurl] prefers raw strings without trailing punctuation.
+        const output = `${storedData.program} ${storedData.giving}`;
+        
         res.end(output); 
         return;
     }
@@ -181,4 +185,4 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-server.listen(3000, '0.0.0.0', () => console.log('Server Active. No-label output enabled.'));
+server.listen(3000, '0.0.0.0', () => console.log('Server Active. Output: URL1 URL2'));
