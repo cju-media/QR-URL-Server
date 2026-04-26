@@ -70,11 +70,11 @@ setInterval(async () => {
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
-    // --- UPDATED SINGLE LINE OUTPUT ---
+    // --- UPDATED FOR MAX/NDI COMPATIBILITY ---
     if (url.pathname === '/get') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        // Outputs: Program-URL [URL] Giving-URL [URL] on one line with no trailing newline
-        const output = `Program-URL ${storedData.program} Giving-URL ${storedData.giving}`;
+        // Using a Pipe (|) separator to help Max distinguish between the two URLs
+        const output = `Program-URL ${storedData.program} | Giving-URL ${storedData.giving}`;
         res.end(output); 
         return;
     }
@@ -91,21 +91,17 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             const formData = parse(body);
             storedData.autoCheckGithub = (formData.useGithub === 'on');
-
             if (storedData.autoCheckGithub) {
                 const gitUrl = await getLatestPDFUrl();
                 if (gitUrl) storedData.program = gitUrl;
             } else if (formData.programUrl) {
                 storedData.program = ensureAbsolute(formData.programUrl);
             }
-
             if (formData.givingUrl) {
                 storedData.giving = ensureAbsolute(formData.givingUrl);
             }
-
             console.log(`Program-URL ${storedData.program}`);
             console.log(`Giving-URL ${storedData.giving}`);
-
             fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(storedData));
@@ -166,21 +162,15 @@ const server = http.createServer(async (req, res) => {
                             document.getElementById('dispGive').innerText = data.giving;
                             document.getElementById('dispGive').href = data.giving;
                             const badge = document.getElementById('mainBadge');
-                            if(data.autoCheckGithub) {
-                                badge.innerText = 'Auto-Polling Active';
-                                badge.className = 'poll-status status-on';
-                            } else {
-                                badge.innerText = 'Manual Mode';
-                                badge.className = 'poll-status status-off';
-                            }
+                            badge.innerText = data.autoCheckGithub ? 'Auto-Polling Active' : 'Manual Mode';
+                            badge.className = 'poll-status ' + (data.autoCheckGithub ? 'status-on' : 'status-off');
                         } catch (e) {}
                     }
                     setInterval(refreshUI, 10000);
                     document.getElementById('urlForm').onsubmit = async (e) => {
                         e.preventDefault();
                         const btn = document.getElementById('btn');
-                        btn.disabled = true;
-                        btn.innerText = 'Updating...';
+                        btn.disabled = true; btn.innerText = 'Updating...';
                         const bodyParams = new URLSearchParams();
                         if (document.getElementById('gh').checked) bodyParams.append('useGithub', 'on');
                         if (document.getElementById('pUrl').value) bodyParams.append('programUrl', document.getElementById('pUrl').value);
@@ -188,8 +178,7 @@ const server = http.createServer(async (req, res) => {
                         try {
                             const response = await fetch('/', { method: 'POST', body: bodyParams });
                             const data = await response.json();
-                            refreshUI();
-                            e.target.reset();
+                            refreshUI(); e.target.reset();
                             document.getElementById('gh').checked = data.autoCheckGithub;
                             btn.innerText = 'Updated!';
                             setTimeout(() => { btn.innerText = 'Update System'; btn.disabled = false; }, 1500);
@@ -202,4 +191,4 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-server.listen(3000, '0.0.0.0', () => console.log('Server Active. Single-line GET enabled.'));
+server.listen(3000, '0.0.0.0', () => console.log('Server Active. Output: Program-URL | Giving-URL'));
