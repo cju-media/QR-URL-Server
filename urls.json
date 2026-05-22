@@ -1,6 +1,7 @@
 {
   "program": "https://docs.google.com/viewer?url=https%3A%2F%2Fraw.githubusercontent.com%2FTheCathedralFCCLA%2FOW%2F565a68da47b94d2e74a8aa971013a9a9c533aa7b%2F4.26.26%2520OW.pdf&embedded=true",
-  "giving": "https://www.google.com",
+  "giving": "https://www.example.com",
   "autoCheckGithub": false,
-  "autoGiving": false
+  "autoGiving": false,
+  "lastForcedSunday": ""
 }

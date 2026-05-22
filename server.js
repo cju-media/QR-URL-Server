@@ -8,7 +8,7 @@ const DATA_FILE = path.join(__dirname, 'urls.json');
 const USER = 'TheCathedralFCCLA';
 const REPO = 'OW';
 
-let storedData = { program: "None", giving: "None", autoCheckGithub: false, autoGiving: false };
+let storedData = { program: "None", giving: "None", autoCheckGithub: false, autoGiving: false, lastForcedSunday: "" };
 
 if (fs.existsSync(DATA_FILE)) {
     try {
@@ -98,6 +98,14 @@ const getUpcomingGivingUrl = () => {
 
 setInterval(async () => {
     let updated = false;
+    const now = new Date();
+
+    // Always force to autoGiving on Sunday at 12am
+    if (now.getDay() === 0 && storedData.lastForcedSunday !== now.toDateString()) {
+        storedData.autoGiving = true;
+        storedData.lastForcedSunday = now.toDateString();
+        updated = true;
+    }
 
     if (storedData.autoCheckGithub) {
         const newUrl = await getLatestPDFUrl();
@@ -208,6 +216,7 @@ const server = http.createServer(async (req, res) => {
                             <option value="${URL_COMMUNITY_GARDENS}">Community Gardens (Week 3)</option>
                             <option value="${URL_GENERAL_FUNDS}">General Funds (Week 2, 4, 5)</option>
                         </select>
+                        <input type="text" id="gUrlCustom" placeholder="Or manually enter custom giving URL...">
                         <div style="margin-bottom:20px;">
                             <input type="checkbox" id="ag" ${storedData.autoGiving ? 'checked' : ''}>
                             <label for="ag" style="font-weight:normal; font-size:0.9em; cursor:pointer;">Auto-update Giving based on week of the month</label>
@@ -250,7 +259,15 @@ const server = http.createServer(async (req, res) => {
                         if (document.getElementById('gh').checked) bodyParams.append('useGithub', 'on');
                         if (document.getElementById('ag').checked) bodyParams.append('useAutoGiving', 'on');
                         if (document.getElementById('pUrl').value) bodyParams.append('programUrl', document.getElementById('pUrl').value);
-                        if (document.getElementById('gUrl').value) bodyParams.append('givingUrl', document.getElementById('gUrl').value);
+
+                        const customUrl = document.getElementById('gUrlCustom').value;
+                        const dropUrl = document.getElementById('gUrl').value;
+                        if (customUrl) {
+                            bodyParams.append('givingUrl', customUrl);
+                        } else if (dropUrl) {
+                            bodyParams.append('givingUrl', dropUrl);
+                        }
+
                         try {
                             const response = await fetch('/', { method: 'POST', body: bodyParams });
                             const data = await response.json();
