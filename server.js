@@ -8,11 +8,12 @@ const DATA_FILE = path.join(__dirname, 'urls.json');
 const USER = 'TheCathedralFCCLA';
 const REPO = 'OW';
 
-let storedData = { program: "None", giving: "None", autoCheckGithub: false };
+let storedData = { program: "None", giving: "None", autoCheckGithub: false, autoGiving: false };
 
 if (fs.existsSync(DATA_FILE)) {
     try {
-        storedData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        const fileData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        storedData = { ...storedData, ...fileData };
     } catch (e) { console.error("File error"); }
 }
 
@@ -49,13 +50,45 @@ const getLatestPDFUrl = async () => {
     } catch (err) { return null; }
 };
 
+const URL_GENERAL_FUNDS = "https://www.fccla.org/give";
+const URL_COMMUNITY_GARDENS = "https://host.nxt.blackbaud.com/donor-form/?svcid=tcs&formId=58942e76-ff81-4c77-b722-326e81eb2ea3&envid=p-Pu-hBA3J6UOXabETMuZR_A&zone=usa&utm_source=qr_code";
+const URL_FOOD_AT_FIRST = "https://host.nxt.blackbaud.com/donor-form/?svcid=renxt&formId=5d37b6cb-7c40-4c37-ac7a-f1648429468f&envid=p-Pu-hBA3J6UOXabETMuZR_A&zone=usa&utm_source=qr_code";
+
+const getAutoGivingUrl = () => {
+    const now = new Date();
+    const date = now.getDate();
+    const week = Math.ceil(date / 7);
+
+    if (week === 1) {
+        return URL_FOOD_AT_FIRST;
+    } else if (week === 3) {
+        return URL_COMMUNITY_GARDENS;
+    } else {
+        return URL_GENERAL_FUNDS;
+    }
+};
+
 setInterval(async () => {
+    let updated = false;
+
     if (storedData.autoCheckGithub) {
         const newUrl = await getLatestPDFUrl();
         if (newUrl && newUrl !== storedData.program) {
             storedData.program = newUrl;
-            fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
+            updated = true;
         }
+    }
+
+    if (storedData.autoGiving) {
+        const newGivingUrl = getAutoGivingUrl();
+        if (newGivingUrl !== storedData.giving) {
+            storedData.giving = newGivingUrl;
+            updated = true;
+        }
+    }
+
+    if (updated) {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
     }
 }, 10000);
 
@@ -93,9 +126,14 @@ const server = http.createServer(async (req, res) => {
             } else if (formData.programUrl) {
                 storedData.program = ensureAbsolute(formData.programUrl);
             }
-            if (formData.givingUrl) {
+
+            storedData.autoGiving = (formData.useAutoGiving === 'on');
+            if (storedData.autoGiving) {
+                storedData.giving = getAutoGivingUrl();
+            } else if (formData.givingUrl) {
                 storedData.giving = ensureAbsolute(formData.givingUrl);
             }
+
             fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(storedData));
@@ -124,8 +162,8 @@ const server = http.createServer(async (req, res) => {
             </head>
             <body>
                 <div class="card">
-                    <div id="mainBadge" class="poll-status ${storedData.autoCheckGithub ? 'status-on' : 'status-off'}">
-                        ${storedData.autoCheckGithub ? 'Auto-Polling Active' : 'Manual Mode'}
+                    <div id="mainBadge" class="poll-status ${(storedData.autoCheckGithub || storedData.autoGiving) ? 'status-on' : 'status-off'}">
+                        ${(storedData.autoCheckGithub || storedData.autoGiving) ? 'Auto-Polling Active' : 'Manual Mode'}
                     </div>
                     <h2 style="margin:0 0 15px 0">URL Controller</h2>
                     <form id="urlForm">
@@ -137,6 +175,10 @@ const server = http.createServer(async (req, res) => {
                         </div>
                         <label>Giving URL</label>
                         <input type="text" id="gUrl" placeholder="Enter giving URL...">
+                        <div style="margin-bottom:20px;">
+                            <input type="checkbox" id="ag" ${storedData.autoGiving ? 'checked' : ''}>
+                            <label for="ag" style="font-weight:normal; font-size:0.9em; cursor:pointer;">Auto-update Giving based on week of the month</label>
+                        </div>
                         <button type="submit" id="btn">Update System</button>
                     </form>
                     <div class="status-section">
@@ -156,8 +198,10 @@ const server = http.createServer(async (req, res) => {
                             document.getElementById('dispGive').innerText = data.giving;
                             document.getElementById('dispGive').href = data.giving;
                             const badge = document.getElementById('mainBadge');
-                            badge.innerText = data.autoCheckGithub ? 'Auto-Polling Active' : 'Manual Mode';
-                            badge.className = 'poll-status ' + (data.autoCheckGithub ? 'status-on' : 'status-off');
+                            const isAuto = data.autoCheckGithub || data.autoGiving;
+                            badge.innerText = isAuto ? 'Auto-Polling Active' : 'Manual Mode';
+                            badge.className = 'poll-status ' + (isAuto ? 'status-on' : 'status-off');
+                            document.getElementById('ag').checked = data.autoGiving;
                         } catch (e) {}
                     }
                     setInterval(refreshUI, 10000);
@@ -167,6 +211,7 @@ const server = http.createServer(async (req, res) => {
                         btn.disabled = true; btn.innerText = 'Updating...';
                         const bodyParams = new URLSearchParams();
                         if (document.getElementById('gh').checked) bodyParams.append('useGithub', 'on');
+                        if (document.getElementById('ag').checked) bodyParams.append('useAutoGiving', 'on');
                         if (document.getElementById('pUrl').value) bodyParams.append('programUrl', document.getElementById('pUrl').value);
                         if (document.getElementById('gUrl').value) bodyParams.append('givingUrl', document.getElementById('gUrl').value);
                         try {
@@ -174,6 +219,7 @@ const server = http.createServer(async (req, res) => {
                             const data = await response.json();
                             refreshUI(); e.target.reset();
                             document.getElementById('gh').checked = data.autoCheckGithub;
+                            document.getElementById('ag').checked = data.autoGiving;
                             btn.innerText = 'Updated!';
                             setTimeout(() => { btn.innerText = 'Update System'; btn.disabled = false; }, 1500);
                         } catch (err) { btn.disabled = false; }
