@@ -56,8 +56,36 @@ const URL_FOOD_AT_FIRST = "https://host.nxt.blackbaud.com/donor-form/?svcid=renx
 
 const getAutoGivingUrl = () => {
     const now = new Date();
-    const date = now.getDate();
-    const week = Math.ceil(date / 7);
+    // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
+    const dayOfWeek = now.getDay();
+
+    // Calculate days until next Sunday (if today is Sunday, this adds 0 days)
+    const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+
+    const nextSunday = new Date(now);
+    nextSunday.setDate(now.getDate() + daysUntilSunday);
+
+    const week = Math.ceil(nextSunday.getDate() / 7);
+
+    if (week === 1) {
+        return URL_FOOD_AT_FIRST;
+    } else if (week === 3) {
+        return URL_COMMUNITY_GARDENS;
+    } else {
+        return URL_GENERAL_FUNDS;
+    }
+};
+
+const getUpcomingGivingUrl = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+
+    const upcomingSunday = new Date(now);
+    // Add an extra 7 days to get the Sunday *after* the next one
+    upcomingSunday.setDate(now.getDate() + daysUntilSunday + 7);
+
+    const week = Math.ceil(upcomingSunday.getDate() / 7);
 
     if (week === 1) {
         return URL_FOOD_AT_FIRST;
@@ -110,7 +138,7 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/status') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(storedData));
+        res.end(JSON.stringify({ ...storedData, upcomingGiving: getUpcomingGivingUrl() }));
         return;
     }
 
@@ -174,7 +202,12 @@ const server = http.createServer(async (req, res) => {
                             <label for="gh" style="font-weight:normal; font-size:0.9em; cursor:pointer;">Auto-fetch PDF from GitHub (10s)</label>
                         </div>
                         <label>Giving URL</label>
-                        <input type="text" id="gUrl" placeholder="Enter giving URL...">
+                        <select id="gUrl" style="width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; background: white;">
+                            <option value="">-- Manual Override / Unchanged --</option>
+                            <option value="${URL_FOOD_AT_FIRST}">Food@First (Week 1)</option>
+                            <option value="${URL_COMMUNITY_GARDENS}">Community Gardens (Week 3)</option>
+                            <option value="${URL_GENERAL_FUNDS}">General Funds (Week 2, 4, 5)</option>
+                        </select>
                         <div style="margin-bottom:20px;">
                             <input type="checkbox" id="ag" ${storedData.autoGiving ? 'checked' : ''}>
                             <label for="ag" style="font-weight:normal; font-size:0.9em; cursor:pointer;">Auto-update Giving based on week of the month</label>
@@ -186,6 +219,8 @@ const server = http.createServer(async (req, res) => {
                         <a href="${ensureAbsolute(storedData.program)}" target="_blank" id="dispProg" class="url-text">${storedData.program}</a>
                         <strong>Current Giving:</strong>
                         <a href="${ensureAbsolute(storedData.giving)}" target="_blank" id="dispGive" class="url-text">${storedData.giving}</a>
+                        <strong>Upcoming Giving:</strong>
+                        <a href="${getUpcomingGivingUrl()}" target="_blank" id="dispUpcomingGive" class="url-text">${getUpcomingGivingUrl()}</a>
                     </div>
                 </div>
                 <script>
@@ -197,6 +232,8 @@ const server = http.createServer(async (req, res) => {
                             document.getElementById('dispProg').href = data.program;
                             document.getElementById('dispGive').innerText = data.giving;
                             document.getElementById('dispGive').href = data.giving;
+                            document.getElementById('dispUpcomingGive').innerText = data.upcomingGiving;
+                            document.getElementById('dispUpcomingGive').href = data.upcomingGiving;
                             const badge = document.getElementById('mainBadge');
                             const isAuto = data.autoCheckGithub || data.autoGiving;
                             badge.innerText = isAuto ? 'Auto-Polling Active' : 'Manual Mode';
