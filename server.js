@@ -56,8 +56,16 @@ const URL_FOOD_AT_FIRST = "https://host.nxt.blackbaud.com/donor-form/?svcid=renx
 
 const getAutoGivingUrl = () => {
     const now = new Date();
-    const date = now.getDate();
-    const week = Math.ceil(date / 7);
+    // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
+    const dayOfWeek = now.getDay();
+
+    // Calculate days until next Sunday (if today is Sunday, this adds 0 days)
+    const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+
+    const nextSunday = new Date(now);
+    nextSunday.setDate(now.getDate() + daysUntilSunday);
+
+    const week = Math.ceil(nextSunday.getDate() / 7);
 
     if (week === 1) {
         return URL_FOOD_AT_FIRST;
