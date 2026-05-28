@@ -8,7 +8,7 @@ const DATA_FILE = path.join(__dirname, 'urls.json');
 const USER = 'TheCathedralFCCLA';
 const REPO = 'OW';
 
-let storedData = { program: "None", giving: "None", autoCheckGithub: false, autoGiving: false, lastForcedSunday: "" };
+let storedData = { program: "None", giving: "None", autoCheckGithub: false, autoGiving: false, lastForcedSunday: "", lastForcedProgramSunday: "" };
 
 if (fs.existsSync(DATA_FILE)) {
     try {
@@ -104,6 +104,13 @@ setInterval(async () => {
     if (now.getDay() === 0 && storedData.lastForcedSunday !== now.toDateString()) {
         storedData.autoGiving = true;
         storedData.lastForcedSunday = now.toDateString();
+        updated = true;
+    }
+
+    // Always force to autoCheckGithub on Sunday at 12:01am or later (but not before 12:01am)
+    if (now.getDay() === 0 && (now.getHours() > 0 || now.getMinutes() >= 1) && storedData.lastForcedProgramSunday !== now.toDateString()) {
+        storedData.autoCheckGithub = true;
+        storedData.lastForcedProgramSunday = now.toDateString();
         updated = true;
     }
 
