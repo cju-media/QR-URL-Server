@@ -8,7 +8,7 @@ const DATA_FILE = path.join(__dirname, 'urls.json');
 const USER = 'TheCathedralFCCLA';
 const REPO = 'OW';
 
-let storedData = { program: "None", giving: "None", autoCheckGithub: true, autoGiving: true, lastForcedSunday: "" };
+let storedData = { program: "None", giving: "None", manualProgram: false, manualGiving: false, lastForcedSunday: "" };
 
 if (fs.existsSync(DATA_FILE)) {
     try {
@@ -100,15 +100,15 @@ setInterval(async () => {
     let updated = false;
     const now = new Date();
 
-    // Always force to autoGiving and autoCheckGithub on Sunday at 12:01am or later (but not before 12:01am)
+    // Reset manual overrides to false on Sunday at 12:01am or later
     if (now.getDay() === 0 && (now.getHours() > 0 || now.getMinutes() >= 1) && storedData.lastForcedSunday !== now.toDateString()) {
-        storedData.autoCheckGithub = true;
-        storedData.autoGiving = true;
+        storedData.manualProgram = false;
+        storedData.manualGiving = false;
         storedData.lastForcedSunday = now.toDateString();
         updated = true;
     }
 
-    if (storedData.autoCheckGithub) {
+    if (!storedData.manualProgram) {
         const newUrl = await getLatestPDFUrl();
         if (newUrl && newUrl !== storedData.program) {
             storedData.program = newUrl;
@@ -116,7 +116,7 @@ setInterval(async () => {
         }
     }
 
-    if (storedData.autoGiving) {
+    if (!storedData.manualGiving) {
         const newGivingUrl = getAutoGivingUrl();
         if (newGivingUrl !== storedData.giving) {
             storedData.giving = newGivingUrl;
@@ -128,6 +128,20 @@ setInterval(async () => {
         fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
     }
 }, 10000);
+
+if (storedData.program === "None" && !storedData.manualProgram) {
+    getLatestPDFUrl().then(url => {
+        if (url) {
+            storedData.program = url;
+            fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
+        }
+    });
+}
+
+if (storedData.giving === "None" && !storedData.manualGiving) {
+    storedData.giving = getAutoGivingUrl();
+    fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
+}
 
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
@@ -158,12 +172,12 @@ const server = http.createServer(async (req, res) => {
             const formData = parse(body);
 
             if (formData.programUrl) {
-                storedData.autoCheckGithub = false;
+                storedData.manualProgram = true;
                 storedData.program = ensureAbsolute(formData.programUrl);
             }
 
             if (formData.givingUrl) {
-                storedData.autoGiving = false;
+                storedData.manualGiving = true;
                 storedData.giving = ensureAbsolute(formData.givingUrl);
             }
 
@@ -195,9 +209,6 @@ const server = http.createServer(async (req, res) => {
             </head>
             <body>
                 <div class="card">
-                    <div id="mainBadge" class="poll-status ${(storedData.autoCheckGithub || storedData.autoGiving) ? 'status-on' : 'status-off'}">
-                        ${(storedData.autoCheckGithub || storedData.autoGiving) ? 'Auto-Polling Active' : 'Manual Mode'}
-                    </div>
                     <h2 style="margin:0 0 15px 0">URL Controller</h2>
                     <form id="urlForm">
                         <label>Program URL</label>
@@ -234,10 +245,6 @@ const server = http.createServer(async (req, res) => {
                             document.getElementById('dispGive').href = data.giving;
                             document.getElementById('dispUpcomingGive').innerText = data.upcomingGiving;
                             document.getElementById('dispUpcomingGive').href = data.upcomingGiving;
-                            const badge = document.getElementById('mainBadge');
-                            const isAuto = data.autoCheckGithub || data.autoGiving;
-                            badge.innerText = isAuto ? 'Auto-Polling Active' : 'Manual Mode';
-                            badge.className = 'poll-status ' + (isAuto ? 'status-on' : 'status-off');
                         } catch (e) {}
                     }
                     setInterval(refreshUI, 10000);
