@@ -1,10 +1,7 @@
 {
-  "program": "https://example.com/fake.pdf",
-  "giving": "https://example.com/give",
-  "manualProgram": true,
-  "manualGiving": true,
-  "lastForcedSunday": "",
-  "autoCheckGithub": false,
-  "autoGiving": false,
-  "lastForcedProgramSunday": ""
+  "program": "https://docs.google.com/viewer?url=https%3A%2F%2Fraw.githubusercontent.com%2FTheCathedralFCCLA%2FOW%2F34fe5f8eb914fe13489f58bdabab6bf36bd4ceb4%2F5.24.26%2520OW.pdf&embedded=true",
+  "giving": "https://www.fccla.org/give",
+  "manualProgram": false,
+  "manualGiving": false,
+  "lastForcedSunday": ""
 }
