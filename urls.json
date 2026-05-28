@@ -1,6 +1,6 @@
 {
-  "program": "https://www.example.com/manual_pdf.pdf",
-  "giving": "https://www.example.com",
+  "program": "https://example.com/fake.pdf",
+  "giving": "https://example.com/give",
   "autoCheckGithub": false,
   "autoGiving": false,
   "lastForcedSunday": "",
