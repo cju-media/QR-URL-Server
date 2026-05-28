@@ -1,8 +1,10 @@
 {
   "program": "https://example.com/fake.pdf",
   "giving": "https://example.com/give",
+  "manualProgram": true,
+  "manualGiving": true,
+  "lastForcedSunday": "",
   "autoCheckGithub": false,
   "autoGiving": false,
-  "lastForcedSunday": "",
   "lastForcedProgramSunday": ""
 }
