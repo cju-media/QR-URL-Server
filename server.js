@@ -127,7 +127,7 @@ setInterval(async () => {
     if (updated) {
         fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
     }
-}, 10000);
+}, 300000);
 
 if (storedData.program === "None" && !storedData.manualProgram) {
     getLatestPDFUrl().then(url => {
@@ -170,6 +170,20 @@ const server = http.createServer(async (req, res) => {
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             const formData = parse(body);
+
+            if (formData.forceUpdate === 'true') {
+                storedData.manualProgram = false;
+                storedData.manualGiving = false;
+
+                const newProgramUrl = await getLatestPDFUrl();
+                if (newProgramUrl) storedData.program = newProgramUrl;
+
+                storedData.giving = getAutoGivingUrl();
+
+                fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify(storedData));
+            }
 
             if (formData.programUrl) {
                 storedData.manualProgram = true;
@@ -224,6 +238,7 @@ const server = http.createServer(async (req, res) => {
                         <input type="text" id="gUrlCustom" placeholder="Or manually enter custom giving URL..." style="margin-bottom:20px;">
 
                         <button type="submit" id="btn">Update System</button>
+                        <button type="button" id="forceBtn" style="background: #28a745; margin-top: 15px;">Force Update Now</button>
                     </form>
                     <div class="status-section">
                         <strong>Current Program:</strong>
@@ -269,6 +284,20 @@ const server = http.createServer(async (req, res) => {
                             refreshUI(); e.target.reset();
                             btn.innerText = 'Updated!';
                             setTimeout(() => { btn.innerText = 'Update System'; btn.disabled = false; }, 1500);
+                        } catch (err) { btn.disabled = false; }
+                    };
+
+                    document.getElementById('forceBtn').onclick = async (e) => {
+                        const btn = e.target;
+                        btn.disabled = true;
+                        btn.innerText = 'Fetching...';
+                        const bodyParams = new URLSearchParams();
+                        bodyParams.append('forceUpdate', 'true');
+                        try {
+                            await fetch('/', { method: 'POST', body: bodyParams });
+                            refreshUI();
+                            btn.innerText = 'Updated!';
+                            setTimeout(() => { btn.innerText = 'Force Update Now'; btn.disabled = false; }, 1500);
                         } catch (err) { btn.disabled = false; }
                     };
                 </script>
