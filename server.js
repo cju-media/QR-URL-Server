@@ -8,7 +8,7 @@ const DATA_FILE = path.join(__dirname, 'urls.json');
 const USER = 'TheCathedralFCCLA';
 const REPO = 'OW';
 
-let storedData = { program: "None", giving: "None", autoCheckGithub: false, autoGiving: false, lastForcedSunday: "", lastForcedProgramSunday: "" };
+let storedData = { program: "None", giving: "None", autoCheckGithub: true, autoGiving: true, lastForcedSunday: "" };
 
 if (fs.existsSync(DATA_FILE)) {
     try {
@@ -100,17 +100,11 @@ setInterval(async () => {
     let updated = false;
     const now = new Date();
 
-    // Always force to autoGiving on Sunday at 12am
-    if (now.getDay() === 0 && storedData.lastForcedSunday !== now.toDateString()) {
+    // Always force to autoGiving and autoCheckGithub on Sunday at 12:01am or later (but not before 12:01am)
+    if (now.getDay() === 0 && (now.getHours() > 0 || now.getMinutes() >= 1) && storedData.lastForcedSunday !== now.toDateString()) {
+        storedData.autoCheckGithub = true;
         storedData.autoGiving = true;
         storedData.lastForcedSunday = now.toDateString();
-        updated = true;
-    }
-
-    // Always force to autoCheckGithub on Sunday at 12:01am or later (but not before 12:01am)
-    if (now.getDay() === 0 && (now.getHours() > 0 || now.getMinutes() >= 1) && storedData.lastForcedProgramSunday !== now.toDateString()) {
-        storedData.autoCheckGithub = true;
-        storedData.lastForcedProgramSunday = now.toDateString();
         updated = true;
     }
 
@@ -162,18 +156,14 @@ const server = http.createServer(async (req, res) => {
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             const formData = parse(body);
-            storedData.autoCheckGithub = (formData.useGithub === 'on');
-            if (storedData.autoCheckGithub) {
-                const gitUrl = await getLatestPDFUrl();
-                if (gitUrl) storedData.program = gitUrl;
-            } else if (formData.programUrl) {
+
+            if (formData.programUrl) {
+                storedData.autoCheckGithub = false;
                 storedData.program = ensureAbsolute(formData.programUrl);
             }
 
-            storedData.autoGiving = (formData.useAutoGiving === 'on');
-            if (storedData.autoGiving) {
-                storedData.giving = getAutoGivingUrl();
-            } else if (formData.givingUrl) {
+            if (formData.givingUrl) {
+                storedData.autoGiving = false;
                 storedData.giving = ensureAbsolute(formData.givingUrl);
             }
 
@@ -211,11 +201,8 @@ const server = http.createServer(async (req, res) => {
                     <h2 style="margin:0 0 15px 0">URL Controller</h2>
                     <form id="urlForm">
                         <label>Program URL</label>
-                        <input type="text" id="pUrl" placeholder="Enter manual URL...">
-                        <div style="margin-bottom:20px;">
-                            <input type="checkbox" id="gh" ${storedData.autoCheckGithub ? 'checked' : ''}> 
-                            <label for="gh" style="font-weight:normal; font-size:0.9em; cursor:pointer;">Auto-fetch PDF from GitHub (10s)</label>
-                        </div>
+                        <input type="text" id="pUrl" placeholder="Enter manual URL..." style="margin-bottom:20px;">
+
                         <label>Giving URL</label>
                         <select id="gUrl" style="width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; background: white;">
                             <option value="">-- Manual Override / Unchanged --</option>
@@ -223,11 +210,8 @@ const server = http.createServer(async (req, res) => {
                             <option value="${URL_COMMUNITY_GARDENS}">Community Gardens (Week 3)</option>
                             <option value="${URL_GENERAL_FUNDS}">General Funds (Week 2, 4, 5)</option>
                         </select>
-                        <input type="text" id="gUrlCustom" placeholder="Or manually enter custom giving URL...">
-                        <div style="margin-bottom:20px;">
-                            <input type="checkbox" id="ag" ${storedData.autoGiving ? 'checked' : ''}>
-                            <label for="ag" style="font-weight:normal; font-size:0.9em; cursor:pointer;">Auto-update Giving based on week of the month</label>
-                        </div>
+                        <input type="text" id="gUrlCustom" placeholder="Or manually enter custom giving URL..." style="margin-bottom:20px;">
+
                         <button type="submit" id="btn">Update System</button>
                     </form>
                     <div class="status-section">
@@ -254,7 +238,6 @@ const server = http.createServer(async (req, res) => {
                             const isAuto = data.autoCheckGithub || data.autoGiving;
                             badge.innerText = isAuto ? 'Auto-Polling Active' : 'Manual Mode';
                             badge.className = 'poll-status ' + (isAuto ? 'status-on' : 'status-off');
-                            document.getElementById('ag').checked = data.autoGiving;
                         } catch (e) {}
                     }
                     setInterval(refreshUI, 10000);
@@ -263,8 +246,6 @@ const server = http.createServer(async (req, res) => {
                         const btn = document.getElementById('btn');
                         btn.disabled = true; btn.innerText = 'Updating...';
                         const bodyParams = new URLSearchParams();
-                        if (document.getElementById('gh').checked) bodyParams.append('useGithub', 'on');
-                        if (document.getElementById('ag').checked) bodyParams.append('useAutoGiving', 'on');
                         if (document.getElementById('pUrl').value) bodyParams.append('programUrl', document.getElementById('pUrl').value);
 
                         const customUrl = document.getElementById('gUrlCustom').value;
@@ -279,8 +260,6 @@ const server = http.createServer(async (req, res) => {
                             const response = await fetch('/', { method: 'POST', body: bodyParams });
                             const data = await response.json();
                             refreshUI(); e.target.reset();
-                            document.getElementById('gh').checked = data.autoCheckGithub;
-                            document.getElementById('ag').checked = data.autoGiving;
                             btn.innerText = 'Updated!';
                             setTimeout(() => { btn.innerText = 'Update System'; btn.disabled = false; }, 1500);
                         } catch (err) { btn.disabled = false; }
