@@ -5,9 +5,6 @@ const path = require('path');
 const https = require('https');
 
 const DATA_FILE = path.join(__dirname, 'urls.json');
-const USER = 'TheCathedralFCCLA';
-const REPO = 'OW';
-
 let storedData = { program: "None", giving: "None", manualProgram: false, manualGiving: false, lastForcedSunday: "" };
 
 if (fs.existsSync(DATA_FILE)) {
@@ -24,30 +21,19 @@ const ensureAbsolute = (url) => {
     return cleaned;
 };
 
-const getJSON = (url) => {
-    return new Promise((resolve, reject) => {
-        const options = { headers: { 'User-Agent': 'Node-Script' } };
-        https.get(url, options, (res) => {
-            let data = '';
-            res.on('data', (chunk) => data += chunk);
-            res.on('end', () => {
-                if (res.statusCode !== 200) reject(new Error(`GitHub Error: ${res.statusCode}`));
-                else resolve(JSON.parse(data));
-            });
-        }).on('error', reject);
-    });
-};
+const getAutoProgramUrl = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
 
-const getLatestPDFUrl = async () => {
-    try {
-        const commits = await getJSON(`https://api.github.com/repos/${USER}/${REPO}/commits`);
-        const sha = commits[0].sha;
-        const files = await getJSON(`https://api.github.com/repos/${USER}/${REPO}/contents/?ref=${sha}`);
-        const pdf = files.find(f => f.name.toLowerCase().endsWith('.pdf'));
-        if (!pdf) return null;
-        const rawUrl = `https://raw.githubusercontent.com/${USER}/${REPO}/${sha}/${encodeURIComponent(pdf.name)}`;
-        return `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`;
-    } catch (err) { return null; }
+    const nextSunday = new Date(now);
+    nextSunday.setDate(now.getDate() + daysUntilSunday);
+
+    const m = nextSunday.getMonth() + 1;
+    const d = nextSunday.getDate();
+    const yy = nextSunday.getFullYear().toString().slice(-2);
+
+    return `https://fccla.org/${m}-${d}-${yy}`;
 };
 
 const URL_GENERAL_FUNDS = "https://www.fccla.org/give";
@@ -109,7 +95,7 @@ setInterval(async () => {
     }
 
     if (!storedData.manualProgram) {
-        const newUrl = await getLatestPDFUrl();
+        const newUrl = getAutoProgramUrl();
         if (newUrl && newUrl !== storedData.program) {
             storedData.program = newUrl;
             updated = true;
@@ -130,12 +116,11 @@ setInterval(async () => {
 }, 300000);
 
 if (storedData.program === "None" && !storedData.manualProgram) {
-    getLatestPDFUrl().then(url => {
-        if (url) {
-            storedData.program = url;
-            fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
-        }
-    });
+    const url = getAutoProgramUrl();
+    if (url) {
+        storedData.program = url;
+        fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
+    }
 }
 
 if (storedData.giving === "None" && !storedData.manualGiving) {
@@ -175,7 +160,7 @@ const server = http.createServer(async (req, res) => {
                 storedData.manualProgram = false;
                 storedData.manualGiving = false;
 
-                const newProgramUrl = await getLatestPDFUrl();
+                const newProgramUrl = getAutoProgramUrl();
                 if (newProgramUrl) storedData.program = newProgramUrl;
 
                 storedData.giving = getAutoGivingUrl();
