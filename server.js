@@ -5,7 +5,10 @@ const path = require('path');
 const https = require('https');
 
 const DATA_FILE = path.join(__dirname, 'urls.json');
-let storedData = { program: "None", giving: "None", manualProgram: false, manualGiving: false, lastForcedSunday: "" };
+const USER = 'TheCathedralFCCLA';
+const REPO = 'OW';
+
+let storedData = { program: "None", giving: "None", manualProgram: false, manualGiving: false, lastForcedSunday: "", lastRepoSha: "" };
 
 if (fs.existsSync(DATA_FILE)) {
     try {
@@ -19,6 +22,27 @@ const ensureAbsolute = (url) => {
     const cleaned = url.trim().replace(/%+$/, ''); 
     if (!/^https?:\/\//i.test(cleaned)) return 'https://' + cleaned;
     return cleaned;
+};
+
+const getJSON = (url) => {
+    return new Promise((resolve, reject) => {
+        const options = { headers: { 'User-Agent': 'Node-Script' } };
+        https.get(url, options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                if (res.statusCode !== 200) reject(new Error(`GitHub Error: ${res.statusCode}`));
+                else resolve(JSON.parse(data));
+            });
+        }).on('error', reject);
+    });
+};
+
+const getLatestRepoSha = async () => {
+    try {
+        const commits = await getJSON(`https://api.github.com/repos/${USER}/${REPO}/commits`);
+        return commits[0].sha;
+    } catch (err) { return null; }
 };
 
 const getAutoProgramUrl = () => {
@@ -91,13 +115,22 @@ setInterval(async () => {
         storedData.manualProgram = false;
         storedData.manualGiving = false;
         storedData.lastForcedSunday = now.toDateString();
+
+        // Sunday morning reset just to be sure
+        const newUrl = getAutoProgramUrl();
+        if (newUrl) storedData.program = newUrl;
+
         updated = true;
     }
 
     if (!storedData.manualProgram) {
-        const newUrl = getAutoProgramUrl();
-        if (newUrl && newUrl !== storedData.program) {
-            storedData.program = newUrl;
+        const currentSha = await getLatestRepoSha();
+        if (currentSha && currentSha !== storedData.lastRepoSha) {
+            storedData.lastRepoSha = currentSha;
+            const newUrl = getAutoProgramUrl();
+            if (newUrl && newUrl !== storedData.program) {
+                storedData.program = newUrl;
+            }
             updated = true;
         }
     }
@@ -116,11 +149,14 @@ setInterval(async () => {
 }, 300000);
 
 if (storedData.program === "None" && !storedData.manualProgram) {
-    const url = getAutoProgramUrl();
-    if (url) {
-        storedData.program = url;
-        fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
-    }
+    getLatestRepoSha().then(sha => {
+        if (sha) storedData.lastRepoSha = sha;
+        const url = getAutoProgramUrl();
+        if (url) {
+            storedData.program = url;
+            fs.writeFileSync(DATA_FILE, JSON.stringify(storedData, null, 2));
+        }
+    });
 }
 
 if (storedData.giving === "None" && !storedData.manualGiving) {
@@ -159,6 +195,9 @@ const server = http.createServer(async (req, res) => {
             if (formData.forceUpdate === 'true') {
                 storedData.manualProgram = false;
                 storedData.manualGiving = false;
+
+                const sha = await getLatestRepoSha();
+                if (sha) storedData.lastRepoSha = sha;
 
                 const newProgramUrl = getAutoProgramUrl();
                 if (newProgramUrl) storedData.program = newProgramUrl;
