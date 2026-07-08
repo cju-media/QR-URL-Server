@@ -33,7 +33,7 @@ const getAutoProgramUrl = () => {
     const d = nextSunday.getDate();
     const yy = nextSunday.getFullYear().toString().slice(-2);
 
-    return `https://fccla.org/${m}-${d}-${yy}`;
+    return `https://fccla.org/ows/${m}-${d}-${yy}`;
 };
 
 const URL_GENERAL_FUNDS = "https://www.fccla.org/give";
